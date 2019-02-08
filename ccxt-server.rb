@@ -1,20 +1,21 @@
 #(c) 2019 Jan 26 by sacarlson_2000@yahoo.com aka sacarlson aka Scott Carlson
-# middle restclient server to combine multiple ccxt feed prices
-# it has minimal ccxt support with only the fetchTicker supported for a simulated custom exchange
-# note I think all ccxt need to be changed to ccxt in all file names and references
+# middle restclient server to combine multiple ccxt-rest feed prices
+# it has minimal ccxt support with only the fetchTicker supported for a simulated custom exchange feed
+# this version now tested as working as a simulated feed for the kelp trading bot
 
 # to start: bundle exec ruby ./ccxt-server.rb
-# to minimaly test you can 
-#curl -X POST http://localhost:8080/exchanges/custom/myccxt/fetchTicker -d '["XLM/USD"]'
-# note: asset pair format is '["base/currency"]' that seems standard on ccxt-rest
 
-# the plan is to have this server lookup a number of ccxt-rest or other built in feeds
+# to minimaly test at default settings you can 
+#curl -X POST http://localhost:3000/exchanges/binance/binance/fetchTicker -d '["XLM/USD"]'
+# note: asset pair format is '["base/currency"]' that seems standard on ccxt-rest
+# also note in my code if an unsupported reversed pair is used like ["USD/XLM"] we will auto reverse to get feed here and reverse back the corrected results
+
+# This server looks up a number of ccxt-rest or other built in feeds
 # the returned number of feeds will then be weight averged out depending on the weight of what we
 # think we know is the averge daily volume of the exchanges
-# we can also setup a "fallback" mode that just uses one exchanges value that on failure will get another exchange feed 
+# we can also setup a "fallback" mode that just uses one exchanges value that on failure will attemp to get another exchange feed 
 # in an aranged order of best to worst feeds
 
-# 
 
 # I guess bundler/setup can be used optionaly instead of my way of starting the app, I've just never tried it
 #require 'bundler/setup'
@@ -22,12 +23,21 @@ require 'sinatra'
 require 'thin'
 require './ccxt_lib.rb' 
 
-# exchanges is an array of arrays that holds a group or two element arrays that contain the name of the exchange and it's trading weight
+# exchanges is an array of arrays that holds a group or two element arrays that contain the name of the exchange and it's trading weight.
 # example: ["kraken",75] would be the kraken exchange with trading weight of 75
 # the weight value can be in percent or in the estimated daily volume of the exchanges.  I'm looking at percent as what I plan to use normally.
 exchanges = [["kraken",66],["poloniex",33]]
 # in this case with kraken at 66 and poloniex at 33 is because I know that kraken has about 2X the trading volume of poloniex so it
 # should have two times the trading weight.  I guess the values of 2 and 1 would also work in this case.
+
+# on kelp we see: /exchanges/binance/binance/fetchTicker
+#ccxt_exchange_name is the simulated exchange that the ccxt-server responds, binance is set as default to support kelp using binance
+ccxt_exchange_name = "binance"
+#ccxt_exchange_name = "custom"
+
+#ccxt_exchange_account is the simulated exchange account used by the ccxt-server default is binance that is supported account name used in kelp for binance off the shelf
+ccxt_echange_account = "binance"
+#ccxt_echange_account = "myccxt"
 
 #mode can be set to fallback or weighted_averge
 # in fallback mode we start with the first exchange in the exchange array and ignore trading weight values
@@ -51,9 +61,54 @@ min_total_weights = 60
 max_diff = 0.001
 
 # set the listen port for the simulated ccxt-server
-set :port, 8080
+#set :port, 8080
+# to mimic the real ccxt-rest server default we need to set to port 3000
+# remember to set the real ccxt-rest to port 3030 when that is started with ENV change to PORT=3030
+# it seems Kelp is hard coded to port 3000 so I guess changing here and ccxt-rest is easiest for now
+set :port, 3000
 
-post '/exchanges/custom/myccxt/fetchTicker/?' do
+#end config settings *************************************************************************
+
+# post '/exchanges/binance/binance/loadMarkets/?' do
+post '/exchanges/' + ccxt_exchange_name +'/' + ccxt_echange_account + '/loadMarkets/?' do
+  headers['Content-Type'] = 'application/json'
+  puts "posted_c params,keys #{params.keys}"
+  erb :loadmarkets
+end
+
+
+get '/exchanges' do
+   headers['Content-Type'] = 'application/json'
+   #task = param[:task]
+   puts "params.keys #{params.keys}"
+   puts "params[:task] #{params[:task]}"
+'["_1broker","_1btcxe","acx","allcoin","anxpro","anybits","bibox","bigone","binance","bit2c","bitbank","bitbay","bitfinex","bitfinex2","bitflyer","bithumb","bitkk","bitlish","bitmarket","bitmex","bitsane","bitso","bitstamp","bitstamp1","bittrex","bitz","bl3p","bleutrade","braziliex","btcalpha","btcbox","btcchina","btcexchange","btcmarkets","btctradeim","btctradeua","btcturk","btcx","bxinth","ccex","cex","chbtc","chilebit","cobinhood","coinbase","coinbasepro","coincheck","coinegg","coinex","coinexchange","coinfalcon","coinfloor","coingi","coinmarketcap","coinmate","coinnest","coinone","coinsecure","coinspot","cointiger","coolcoin","crypton","cryptopia","deribit","dsx","ethfinex","exmo","exx","fcoin","flowbtc","foxbit","fybse","fybsg","gatecoin","gateio","gdax","gemini","getbtc","hadax","hitbtc","hitbtc2","huobi","huobicny","huobipro","ice3x","independentreserve","indodax","itbit","jubi","kraken","kucoin","kuna","lakebtc","lbank","liqui","livecoin","luno","lykke","mercado","mixcoins","negociecoins","nova","okcoincny","okcoinusd","okex","paymium","poloniex","qryptos","quadrigacx","quoinex","rightbtc","southxchange","surbitcoin","theocean","therock","tidebit","tidex","urdubit","vaultoro","vbtc","virwox","wex","xbtce","yobit","yunbi","zaif","zb"]'
+end
+
+
+#get '/exchanges/binance' do
+get '/exchanges/' + ccxt_exchange_name do
+  headers['Content-Type'] = 'application/json'
+'["binance"]'
+end
+
+#get '/exchanges/binance/binance' do
+get '/exchanges/' + ccxt_exchange_name + '/' + ccxt_echange_account  do
+  headers['Content-Type'] = 'application/json'
+  erb :binance_binance
+end
+
+#just to see any attempts of unsupported gets
+get '/:task' do
+  headers['Content-Type'] = 'application/json'
+  puts ":task params.keys #{params.keys}"
+  puts "params[:task] #{params[:task]}"
+  'at_task'
+end
+
+#post '/exchanges/binance/binance/fetchTicker/?' do
+post '/exchanges/' + ccxt_exchange_name +'/' + ccxt_echange_account + '/fetchTicker/?' do
+    headers['Content-Type'] = 'application/json'
     #puts "posted: #{params.keys[0]}"
     assetpair = params.keys[0]
     puts "assetpair: #{assetpair}"
@@ -88,12 +143,12 @@ post '/exchanges/custom/myccxt/fetchTicker/?' do
   # should see: {"bid":0.08189788,"ask":0.08189788,"last":0.08189788,"info":{"info":{"status":"pass","rates":{"kraken":"0.08172450","poloniex":"0.08224463"},"total_weights":99,"averge_rate":0.08189788,"max_rate":0.08224463,"min_rate":0.0817245},"bid":0.08189788,"ask":0.08189788,"last":0.08189788,"rate":0.08189788}}
 end
 
-post '/exchanges/custom/?' do
-  # just fill responce to prevent error out on first exchange setup input
+#post '/exchanges/binance/?' do
+post '/exchanges/' + ccxt_exchange_name + '/?' do
+  headers['Content-Type'] = 'application/json'
+  # view params passed in post
   puts "params.keys: #{params.keys}"
-  # this simulated data bellow was collected from what was seen from a real ccxt server return
-  simulated_sendback = '{"isBrowser":false,"isElectron":false,"isWebWorker":false,"isNode":true,"isWindows":false,"precisionConstants":{"ROUND":0,"TRUNCATE":1,"DECIMAL_PLACES":0,"SIGNIFICANT_DIGITS":1,"NO_PADDING":0,"PAD_WITH_ZERO":1},"ROUND":0,"TRUNCATE":1,"DECIMAL_PLACES":0,"SIGNIFICANT_DIGITS":1,"NO_PADDING":0,"PAD_WITH_ZERO":1,"timeout":10000,"is_browser":false,"is_electron":false,"is_web_worker":false,"is_node":true,"is_windows":false,"precision_constants":"~precisionConstants","options":{"limits":{"cost":{"min":{"BTC":0.0001,"ETH":0.0001,"XMR":0.0001,"USDT":1}}}},"fetchOptions":{},"userAgents":{"chrome":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.94 Safari/537.36","chrome39":"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36"},"headers":{},"proxy":"","origin":"*","minFundingAddressLength":1,"substituteCommonCurrencyCodes":true,"verbose":false,"debug":false,"journal":"debug.json","twofa":false,"secret":"nosecret","balance":{},"orderbooks":{},"tickers":{},"orders":{},"trades":{},"transactions":{},"fetch_options":"~fetchOptions","user_agents":"~userAgents","min_funding_address_length":1,"substitute_common_currency_codes":true,"id":"myccxt","name":"Poloniex","countries":["US"],"enableRateLimit":false,"rateLimit":1000,"certified":false,"has":{"CORS":false,"publicAPI":true,"privateAPI":true,"cancelOrder":true,"cancelOrders":false,"createDepositAddress":true,"createOrder":true,"createMarketOrder":false,"createLimitOrder":true,"deposit":false,"editOrder":true,"fetchBalance":true,"fetchBidsAsks":false,"fetchClosedOrders":"emulated","fetchCurrencies":true,"fetchDepositAddress":true,"fetchFundingFees":false,"fetchL2OrderBook":true,"fetchMarkets":true,"fetchMyTrades":true,"fetchOHLCV":true,"fetchOpenOrders":true,"fetchOrder":"emulated","fetchOrderBook":true,"fetchOrderBooks":false,"fetchOrders":"emulated","fetchTicker":true,"fetchTickers":true,"fetchTrades":true,"fetchTradingFees":true,"fetchTradingLimits":false,"withdraw":true,"fetchOrderTrades":true},"urls":{"logo":"https://user-images.githubusercontent.com/1294454/27766817-e9456312-5ee6-11e7-9b3c-b628ca5626a5.jpg","api":{"public":"https://poloniex.com/public","private":"https://poloniex.com/tradingApi"},"www":"https://poloniex.com","doc":["https://poloniex.com/support/api/","http://pastebin.com/dMX7mZE0"],"fees":"https://poloniex.com/fees"},"api":{"public":{"get":["return24hVolume","returnChartData","returnCurrencies","returnLoanOrders","returnOrderBook","returnTicker","returnTradeHistory"]},"private":{"post":["buy","cancelLoanOffer","cancelOrder","closeMarginPosition","createLoanOffer","generateNewAddress","getMarginPosition","marginBuy","marginSell","moveOrder","returnActiveLoans","returnAvailableAccountBalances","returnBalances","returnCompleteBalances","returnDepositAddresses","returnDepositsWithdrawals","returnFeeInfo","returnLendingHistory","returnMarginAccountSummary","returnOpenLoanOffers","returnOpenOrders","returnOrderTrades","returnTradableBalances","returnTradeHistory","sell","toggleAutoRenew","transferBalance","withdraw"]}},"requiredCredentials":{"apiKey":true,"secret":true,"uid":false,"login":false,"password":false,"twofa":false,"privateKey":false,"walletAddress":false},"currencies":{},"timeframes":{"5m":300,"15m":900,"30m":1800,"2h":7200,"4h":14400,"1d":86400},"fees":{"trading":{"taker":0.0025,"maker":0.0015},"funding":{"withdraw":{},"deposit":{}}},"parseJsonResponse":true,"skipJsonOnStatusCodes":[],"dontGetUsedBalanceFromStaleCache":false,"commonCurrencies":{"XBT":"BTC","BCC":"BTCtalkcoin","DRK":"DASH","AIR":"AirCoin","APH":"AphroditeCoin","BDG":"Badgercoin","BTM":"Bitmark","CON":"Coino","GOLD":"GoldEagles","GPUC":"GPU","HOT":"Hotcoin","ITC":"Information Coin","PLX":"ParallaxCoin","KEY":"KEYCoin","STR":"XLM","SOC":"SOCC","XAP":"API Coin"},"precisionMode":0,"limits":{"amount":{"min":1e-8,"max":1000000000},"price":{"min":1e-8,"max":1000000000},"cost":{"min":0,"max":1000000000}},"precision":{"amount":8,"price":8},"apikey":"nokey","hasCORS":false,"hasPublicAPI":true,"hasPrivateAPI":true,"hasCancelOrder":true,"hasCancelOrders":false,"hasCreateDepositAddress":true,"hasCreateOrder":true,"hasCreateMarketOrder":false,"hasCreateLimitOrder":true,"hasDeposit":false,"hasEditOrder":true,"hasFetchBalance":true,"hasFetchBidsAsks":false,"hasFetchClosedOrders":true,"hasFetchCurrencies":true,"hasFetchDepositAddress":true,"hasFetchFundingFees":false,"hasFetchL2OrderBook":true,"hasFetchMarkets":true,"hasFetchMyTrades":true,"hasFetchOHLCV":true,"hasFetchOpenOrders":true,"hasFetchOrder":true,"hasFetchOrderBook":true,"hasFetchOrderBooks":false,"hasFetchOrders":true,"hasFetchTicker":true,"hasFetchTickers":true,"hasFetchTrades":true,"hasFetchTradingFees":true,"hasFetchTradingLimits":false,"hasWithdraw":true,"hasFetchOrderTrades":true,"tokenBucket":{"refillRate":0.001,"delay":1,"capacity":1,"defaultCost":1,"maxCapacity":1000},"web3":{"currentProvider":{"host":"http://localhost:8545","timeout":0,"connected":false},"_requestManager":{"provider":"~web3~currentProvider","providers":{},"subscriptions":{}},"givenProvider":null,"providers":"~web3~_requestManager~providers","_provider":"~web3~currentProvider","version":"1.0.0-beta.34","utils":{"unitMap":{"noether":"0","wei":"1","kwei":"1000","Kwei":"1000","babbage":"1000","femtoether":"1000","mwei":"1000000","Mwei":"1000000","lovelace":"1000000","picoether":"1000000","gwei":"1000000000","Gwei":"1000000000","shannon":"1000000000","nanoether":"1000000000","nano":"1000000000","szabo":"1000000000000","microether":"1000000000000","micro":"1000000000000","finney":"1000000000000000","milliether":"1000000000000000","milli":"1000000000000000","ether":"1000000000000000000","kether":"1000000000000000000000","grand":"1000000000000000000000","mether":"1000000000000000000000000","gether":"1000000000000000000000000000","tether":"1000000000000000000000000000000"}},"eth":{"currentProvider":"~web3~currentProvider","_requestManager":{"provider":"~web3~currentProvider","providers":"~web3~_requestManager~providers","subscriptions":{}},"givenProvider":null,"providers":"~web3~_requestManager~providers","_provider":"~web3~currentProvider","defaultAccount":null,"defaultBlock":"latest","net":{"currentProvider":"~web3~currentProvider","_requestManager":{"provider":"~web3~currentProvider","providers":"~web3~_requestManager~providers","subscriptions":{}},"givenProvider":null,"providers":"~web3~_requestManager~providers","_provider":"~web3~currentProvider"},"accounts":{"currentProvider":"~web3~currentProvider","_requestManager":{"provider":"~web3~currentProvider","providers":"~web3~_requestManager~providers","subscriptions":{}},"givenProvider":null,"providers":"~web3~_requestManager~providers","_provider":"~web3~currentProvider","_ethereumCall":{},"wallet":{"_accounts":"~web3~eth~accounts","length":0,"defaultKeyName":"web3js_wallet"}},"personal":{"currentProvider":"~web3~currentProvider","_requestManager":{"provider":"~web3~currentProvider","providers":"~web3~_requestManager~providers","subscriptions":{}},"givenProvider":null,"providers":"~web3~_requestManager~providers","_provider":"~web3~currentProvider","net":{"currentProvider":"~web3~currentProvider","_requestManager":{"provider":"~web3~currentProvider","providers":"~web3~_requestManager~providers","subscriptions":{}},"givenProvider":null,"providers":"~web3~_requestManager~providers","_provider":"~web3~currentProvider"},"defaultAccount":null,"defaultBlock":"latest"},"abi":{"_types":[{},{},{},{},{},{},{}]},"compile":{}},"shh":{"currentProvider":"~web3~currentProvider","_requestManager":{"provider":"~web3~currentProvider","providers":"~web3~_requestManager~providers","subscriptions":{}},"givenProvider":null,"providers":"~web3~_requestManager~providers","_provider":"~web3~currentProvider","net":{"currentProvider":"~web3~currentProvider","_requestManager":{"provider":"~web3~currentProvider","providers":"~web3~_requestManager~providers","subscriptions":{}},"givenProvider":null,"providers":"~web3~_requestManager~providers","_provider":"~web3~currentProvider"}},"bzz":{"givenProvider":null,"currentProvider":null}}}'
-# for now just send what we saw recieved in POST, not sure we need the above returned in some cases or even if it would work if we did send it.
-# for my needs this is ok as my code doesn't use any of the returned info above
-params.keys
+  # use simulated binance return found in ./views/setup_binance.erb file that is pointed to bellow
+  # this simulated data bellow was collected from what was seen from a real ccxt binance setup server return
+  erb :setup_binance
 end

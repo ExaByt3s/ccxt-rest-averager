@@ -1,14 +1,11 @@
 #!/usr/bin/ruby
 #(c) 2019 jan 26. by sacarlson  sacarlson_2000@yahoo.com aka Scott Carlson aka scotty.surething...
 # This is the support lib for ccxt-server.rb
-# it contains the client side drivers to ccxt servers and also direct ruby drivers to a number of crypto and fiat exchanges
-# to start app for test: bundler exec ruby ./ccxt_lib.rb
+# it contains the client side drivers to ccxt-rest servers and also direct ruby drivers to a number of crypto and fiat exchanges
+# that can optionaly be used for customized ccxt-server.rb or other apps
 
 require 'json'
 require 'rest-client'
-# not sure we will need faraday
-#require 'faraday'
-#require 'faraday_middleware'
 
 # start params configs **********************
 
@@ -26,8 +23,11 @@ $max_diff = 0.02
 
 # global values for ccxt configs, I know it sucks but to keep compatible with what we already had
  $ccxt_config = {}
- # standard ccxt-server
- $ccxt_config["url"] =  "http://localhost:3000"
+ # standard ccxt-rest port
+ #$ccxt_config["url"] =  "http://localhost:3000"
+ # need to change real ccxt-rest port to 3030 to support kelp that is hard coded to only support 3000 
+ # make sure ENV PORT=3030 before running ccxt-rest to support this
+ $ccxt_config["url"] =  "http://localhost:3030"
  # ruby ccxt-server
  #$ccxt_config["url"] =  "http://localhost:8080"
  # to see all exchanges supported by ccxt: curl http://localhost:3000/exchanges
@@ -232,7 +232,7 @@ end
 
 
 def get_currencylayer_exchangerate(currency_code,key)
-  #  this does not work yet for reasons uknown probly headers needed but now sure what headers
+  #  this does not work yet for reasons uknown probly headers needed but not sure what headers
   # this one when free will only do lookups compared to USD, also limits to 1000 lookup per month so only 1 per hour
   # but can lookup more than one currency at a time with coma delimited string
   # I see nothing better bettween apilayer.net and https://openexchangerates.org so we are no longer trying to support this one
@@ -272,12 +272,18 @@ def get_ccxt_exchangerate(currency_code, base_code)
   #url example "http://localhost:3000"
   url = $ccxt_config["url"]
   exchange = $ccxt_config["exchange"]
-  puts "exchange: #{exchange}"
+  #puts "exchange: #{exchange}"
   apikey = $ccxt_config["apikey"]
   secret = $ccxt_config["secret"] 
   flag_invert = 0
   puts "base_code: #{base_code}"
   puts "currency_code: #{currency_code}"
+  if base_code == "USDT"
+    base_code = "USD"
+  end
+  if currency_code == "USDT"
+    currency_code = "USD"
+  end
   if base_code == "USD" || base_code == "BTC"    
      puts "base_code ok"      
   else    
@@ -386,8 +392,8 @@ def get_averge_feed(currency_code,base_code,exchanges=[["kraken",66]],mode="weig
   # the first feed that works is returned as the results in standard expanded ccxt format, if all fail then we return result as failure
   # with resulting added total_weights = 0 assuming you set some number in each weights field in exchanges array of at least 1
   #mode = "fallback"||"weighted_averge"
-  # at this point we will force port 3000 to be used as we set it to 8080 to run get_averge_feed. at some point might want to move this setting
-  $ccxt_config["url"] =  "http://localhost:3000"
+  # at this point we will force port 3030 to be used as we have ccxt-server set to listen to 3000 before we run get_averge_feed. at some point might want to move this setting
+  $ccxt_config["url"] =  "http://localhost:3030"
   rates = {}
   total_weights = 0
   total_weighted = 0
@@ -448,7 +454,6 @@ end
 
 
 def get_kraken_exchangerate(currency_code, base_code)
-    #test
   # currency_code = "USD"
   # base_code = "XLM"    
   # looks must end in ZUSD or ZEUR or XBTC??  pair ZUSDXXLM won't work error EQuery:Unknown asset pair

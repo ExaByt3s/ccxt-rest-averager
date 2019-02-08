@@ -1,5 +1,5 @@
 ## ccxt-rest-averager
-ccxt-rest-averager is a middleware server that makes use of the original ccxt-rest server https://github.com/franz-see/ccxt-rest to read multiple supported price feeds from any number of crypto exchanges and combines the weighted averge price of all the prices recieved.  It then outputs this weighted averge feed in the same format as ccxt-rest server does just on another port on the same system.  This allows for any software that uses the ticker data from a ccxt-rest server to use custom averged feed data instead.  We also added a redundancy "fallback" mode that just reads a group of exchange feeds and returns the first working feed found.  This was really written to support Kelp a stellar.org trading bot that optionaly makes use of the ccxt-rest as a feed point.
+ccxt-rest-averager is a middleware server that makes use of the original ccxt-rest server https://github.com/franz-see/ccxt-rest to read multiple supported price feeds from any number of crypto exchanges and combines the weighted averge price of all the prices recieved.  It then outputs this weighted averge feed in the same format as ccxt-rest server does just on another port on the same system.  This allows for any software that uses the ticker data from a ccxt-rest server to use custom averged feed data instead.  We also added a redundancy "fallback" mode that just reads a group of exchange feeds and returns the first working feed found.  This was really written to support Kelp a stellar.org trading bot that optionally makes use of the ccxt-rest as a feed point.  This version now tested as working as a feed server for the Kelp trading bot see: https://github.com/stellar/kelp when kelp is setup to use ccxt-binance as feed. 
 
 ## Configure settings
 At this point the settings are just hard coded into the ./ccxt-server.rb app.  Maybe at some point we will create a readable config file but this was just a quick hack for what we needed at the time.
@@ -14,22 +14,30 @@ in this case with kraken at 66 and poloniex at 33 is because I know that kraken 
 should have two times the trading weight.  I guess the values of 2 and 1 would also work in this case.
 for details on what exchanges are available see the ccxt-rest docs at https://github.com/franz-see/ccxt-rest
 
+### ccxt_exchange_name
+ccxt_exchange_name is the simulated exchange that the ccxt-server responds to, binance is set as default to support kelp using ccxt-binance as feed
+ccxt_exchange_name = "binance"
+
+### ccxt_exchange_account
+ccxt_exchange_account is the simulated exchange account used by the ccxt-server default is binance that is supported account name used in kelp for ccxt-binance 
+ccxt_echange_account = "binance"
+
 ### mode
 in the default "weighted_averge" mode we get all the rate values from all the exchanges in the exchange array and do a total weighted averge 
 calculation on the group of values returned.  failed returns are just ignored and not added to the averge. a failed return is also not added to the total_average value that is returned.
 mode = "weighted_averge"
 
-mode can also be set to "fallback
+mode can also be set to "fallback"
 in fallback mode we start with the first exchange in the exchange array and ignore trading weight values
-if a feed fails it will just try and get the neet feed in line in the array list
-the first feed that works is returned as the result, if all fail then we return result as failure
+if a feed fails it will just try and get the next feed in line in the array list.
+the first feed that works is returned as the result. If all fail then we return result as failure
 mode = "fallback"
 
 ### min_total_average
 the min_total_average value is what we expect to return as failure if too many of the weighted averge return feeds fail.
 example if we have two feeds and one is weighted at 60 and one at 40 if we set min_total_averge of 50
 then we will return without error if the 60 weight returns ok or if both return ok, otherwise we return the feed as failed
-if we set min_total_averge to say 30 then if eather return without failure or both then that value will be returned, only if both fail will return a failure
+if we set min_total_averge to say 30 then if ether return without failure or both then that value will be returned, only if both fail will return a failure
 min_total_weights = 60
 
 ### max_diff
@@ -62,5 +70,5 @@ bundle exec ruby ./ccxt-server.rb
 
 ## Requirements
 tested with ruby version 2.4.3 with rbenv
-ran on Linux mint system. not tested on any other platforms but should work most any system that supports ruby
-for this to work you must also have https://github.com/franz-see/ccxt-rest#getting-started installed and running
+ran on Linux mint system. not tested on any other platforms but should work on most any system that supports ruby.
+for this to work you must also have https://github.com/franz-see/ccxt-rest installed and running on port 3030
